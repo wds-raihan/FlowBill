@@ -1,4 +1,4 @@
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/invoice_gen
+MONGODB_URI=mongodb+srv://flowBill:tRW7eaX0gmgxCul5@cluster.mongodb.net/flow_bill
 NEXTAUTH_SECRET=your-secret-here
 NEXTAUTH_URL=http://localhost:3000
 EMAIL_SERVER_HOST=smtp.example.com
@@ -29,7 +29,7 @@ NEXTAUTH_URL=http://localhost:3000
 
 # MongoDB connection string
 
-# For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/database
+# For MongoDB Atlas: mongodb+srv://flowBill:tRW7eaX0gmgxCul5@cluster.mongodb.net/database
 
 # For local MongoDB: mongodb://localhost:27017/invoice_generator
 

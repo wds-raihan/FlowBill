@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import { Customer } from "@/models/Customer";
 import { User } from "@/models/User";
+import { ApiError, PaginatedResponse } from "@/types/api";
+import { CustomerModel } from "@/types/models";
+import { getServerSession } from "next-auth";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 const customerSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -12,20 +14,24 @@ const customerSchema = z.object({
   phone: z.string().max(20).optional(),
   website: z.string().max(255).optional(),
   taxId: z.string().max(50).optional(),
-  address: z.object({
-    street: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    zipCode: z.string().optional(),
-    country: z.string().optional(),
-  }).optional(),
-  billingAddress: z.object({
-    street: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    zipCode: z.string().optional(),
-    country: z.string().optional(),
-  }).optional(),
+  address: z
+    .object({
+      street: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
+      country: z.string().optional(),
+    })
+    .optional(),
+  billingAddress: z
+    .object({
+      street: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
+      country: z.string().optional(),
+    })
+    .optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -73,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     // Execute query with pagination
     const skip = (page - 1) * limit;
-    
+
     const [customers, total] = await Promise.all([
       Customer.find(query)
         .sort(sort)
@@ -86,8 +92,8 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(total / limit);
 
-    return NextResponse.json({
-      customers,
+    const response: PaginatedResponse<CustomerModel> = {
+      data: customers,
       pagination: {
         page,
         limit,
@@ -96,13 +102,16 @@ export async function GET(request: NextRequest) {
         hasNext: page < totalPages,
         hasPrev: page > 1,
       },
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching customers:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const apiError: ApiError = {
+      error: "Internal server error",
+      status: 500,
+    };
+    return NextResponse.json(apiError, { status: 500 });
   }
 }
 
@@ -155,22 +164,26 @@ export async function POST(request: NextRequest) {
     console.error("Error creating customer:", error);
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid input data", details: error.errors },
-        { status: 400 }
-      );
+      const apiError: ApiError = {
+        error: "Invalid input data",
+        details: error.errors,
+        status: 400,
+      };
+      return NextResponse.json(apiError, { status: 400 });
     }
 
     if (error instanceof Error && error.message.includes("E11000")) {
-      return NextResponse.json(
-        { error: "Customer with this email already exists" },
-        { status: 400 }
-      );
+      const apiError: ApiError = {
+        error: "Customer with this email already exists",
+        status: 400,
+      };
+      return NextResponse.json(apiError, { status: 400 });
     }
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const apiError: ApiError = {
+      error: "Internal server error",
+      status: 500,
+    };
+    return NextResponse.json(apiError, { status: 500 });
   }
 }

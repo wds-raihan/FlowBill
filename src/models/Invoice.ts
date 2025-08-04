@@ -1,6 +1,8 @@
-import mongoose, { Schema, Document } from "mongoose";
+import { InvoiceModel } from "@/types/models";
+import mongoose, { Schema } from "mongoose";
 
-export interface IInvoiceItem {
+// Define a local interface for invoice item since it differs from our standard model
+interface IInvoiceItem {
   description: string;
   pageQty: number;
   serviceCharge: number;
@@ -8,29 +10,10 @@ export interface IInvoiceItem {
   amount: number;
 }
 
-export interface IInvoice extends Document {
-  _id: string;
-  orgId: mongoose.Types.ObjectId;
-  customerId: mongoose.Types.ObjectId;
-  invoiceNo: string;
-  issueDate: Date;
-  dueDate: Date;
-  items: IInvoiceItem[];
-  subTotal: number;
-  tax: number;
-  discount: number;
-  total: number;
-  notes?: string;
-  status: "draft" | "sent" | "paid" | "overdue";
-  createdBy: mongoose.Types.ObjectId;
-  pdfUrl?: string;
-  sentAt?: Date;
-  remindersSent?: Array<{
-    sentAt: Date;
-    sentBy: mongoose.Types.ObjectId;
-  }>;
-  createdAt: Date;
-  updatedAt: Date;
+// Define a local interface for reminders
+interface IInvoiceReminder {
+  sentAt: Date;
+  sentBy: mongoose.Types.ObjectId;
 }
 
 const InvoiceItemSchema = new Schema<IInvoiceItem>({
@@ -74,7 +57,7 @@ const ReminderSchema = new Schema({
   },
 });
 
-const InvoiceSchema = new Schema<IInvoice>(
+const InvoiceSchema = new Schema<InvoiceModel>(
   {
     orgId: {
       type: Schema.Types.ObjectId,
@@ -220,20 +203,23 @@ InvoiceSchema.virtual("daysOverdue").get(function () {
   const today = new Date();
   const dueDate = new Date(this.dueDate);
   if (dueDate >= today) return 0;
-  return Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil(
+    (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
 });
 
 // Method to check if reminder can be sent
 InvoiceSchema.methods.canSendReminder = function () {
   if (this.status === "paid" || this.status === "draft") return false;
-  
+
   // Check if a reminder was sent in the last 24 hours
   if (this.remindersSent && this.remindersSent.length > 0) {
     const lastReminder = this.remindersSent[this.remindersSent.length - 1];
-    const daysSinceLastReminder = (Date.now() - lastReminder.sentAt.getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceLastReminder =
+      (Date.now() - lastReminder.sentAt.getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceLastReminder >= 1; // Allow one reminder per day
   }
-  
+
   return true;
 };
 
@@ -252,4 +238,6 @@ InvoiceSchema.index(
   }
 );
 
-export const Invoice = mongoose.models.Invoice || mongoose.model<IInvoice>("Invoice", InvoiceSchema);
+export const Invoice =
+  mongoose.models.Invoice ||
+  mongoose.model<InvoiceModel>("Invoice", InvoiceSchema);

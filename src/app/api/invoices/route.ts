@@ -1,16 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { Invoice } from "@/models/Invoice";
 import { User } from "@/models/User";
+import { ApiError, ApiSuccess } from "@/types/api";
+import { InvoiceModel } from "@/types/models";
 import mongoose from "mongoose";
+import { getServerSession } from "next-auth";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      const apiError: ApiError = {
+        error: "Unauthorized",
+        status: 401,
+      };
+      return NextResponse.json(apiError, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -45,13 +51,18 @@ export async function GET(request: NextRequest) {
       .populate("customerId", "name email")
       .sort({ createdAt: -1 });
 
-    return NextResponse.json(invoices);
+    const response: ApiSuccess<InvoiceModel[]> = {
+      data: invoices as InvoiceModel[],
+      message: "Invoices retrieved successfully",
+    };
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error fetching invoices:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const apiError: ApiError = {
+      error: "Internal server error",
+      status: 500,
+    };
+    return NextResponse.json(apiError, { status: 500 });
   }
 }
 
@@ -60,7 +71,11 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      const apiError: ApiError = {
+        error: "Unauthorized",
+        status: 401,
+      };
+      return NextResponse.json(apiError, { status: 401 });
     }
 
     const {
@@ -79,7 +94,11 @@ export async function POST(request: NextRequest) {
     const user = await User.findById(session.user.id);
 
     if (!user || (user.role !== "ADMIN" && user.orgId.toString() !== orgId)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const apiError: ApiError = {
+        error: "Forbidden",
+        status: 403,
+      };
+      return NextResponse.json(apiError, { status: 403 });
     }
 
     const invoice = new Invoice({
@@ -97,20 +116,27 @@ export async function POST(request: NextRequest) {
 
     await invoice.save();
 
-    return NextResponse.json(invoice, { status: 201 });
+    const response: ApiSuccess<InvoiceModel> = {
+      data: invoice as unknown as InvoiceModel,
+      message: "Invoice created successfully",
+    };
+    return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error("Error creating invoice:", error);
 
     if (error instanceof mongoose.Error.ValidationError) {
-      return NextResponse.json(
-        { error: "Validation error", details: error.errors },
-        { status: 400 }
-      );
+      const apiError: ApiError = {
+        error: "Validation error",
+        details: error.errors,
+        status: 400,
+      };
+      return NextResponse.json(apiError, { status: 400 });
     }
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const apiError: ApiError = {
+      error: "Internal server error",
+      status: 500,
+    };
+    return NextResponse.json(apiError, { status: 500 });
   }
 }

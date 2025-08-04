@@ -1,34 +1,7 @@
-import mongoose, { Schema, Document } from "mongoose";
+import { UserModel, UserPreferences } from "@/types/models";
+import mongoose, { Schema } from "mongoose";
 
-export interface IUserPreferences {
-  theme: "light" | "dark" | "system";
-  currency: string;
-  dateFormat: string;
-  timezone: string;
-  language: string;
-  emailNotifications: boolean;
-  autoSave: boolean;
-  defaultDueDays: number;
-  defaultTax: number;
-}
-
-export interface IUser extends Document {
-  _id: string;
-  name: string;
-  email: string;
-  password?: string;
-  avatar?: string;
-  role: "owner" | "admin" | "user";
-  orgId: mongoose.Types.ObjectId;
-  emailVerified?: Date;
-  lastLoginAt?: Date;
-  preferences: IUserPreferences;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const UserPreferencesSchema = new Schema<IUserPreferences>({
+const UserPreferencesSchema = new Schema<UserPreferences>({
   theme: {
     type: String,
     enum: ["light", "dark", "system"],
@@ -72,7 +45,7 @@ const UserPreferencesSchema = new Schema<IUserPreferences>({
   },
 });
 
-const UserSchema = new Schema<IUser>(
+const UserSchema = new Schema<UserModel>(
   {
     name: {
       type: String,
@@ -171,4 +144,4 @@ UserSchema.methods.toJSON = function () {
 };
 
 export const User =
-  mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+  mongoose.models.User || mongoose.model<UserModel>("User", UserSchema);

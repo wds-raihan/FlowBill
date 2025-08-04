@@ -1,35 +1,7 @@
-import mongoose, { Schema, Document } from "mongoose";
+import { Address, CustomerModel } from "@/types/models";
+import mongoose, { Schema } from "mongoose";
 
-export interface ICustomerAddress {
-  street?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  country?: string;
-}
-
-export interface ICustomer extends Document {
-  _id: string;
-  orgId: mongoose.Types.ObjectId;
-  name: string;
-  email: string;
-  phone?: string;
-  website?: string;
-  taxId?: string;
-  address: ICustomerAddress;
-  billingAddress?: ICustomerAddress;
-  notes?: string;
-  isActive: boolean;
-  totalInvoiced: number;
-  totalPaid: number;
-  outstandingBalance: number;
-  lastInvoiceDate?: Date;
-  createdBy: mongoose.Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const CustomerAddressSchema = new Schema<ICustomerAddress>({
+const CustomerAddressSchema = new Schema<Address>({
   street: { type: String, trim: true },
   city: { type: String, trim: true },
   state: { type: String, trim: true },
@@ -37,7 +9,7 @@ const CustomerAddressSchema = new Schema<ICustomerAddress>({
   country: { type: String, trim: true },
 });
 
-const CustomerSchema = new Schema<ICustomer>(
+const CustomerSchema = new Schema<CustomerModel>(
   {
     orgId: {
       type: Schema.Types.ObjectId,
@@ -126,7 +98,7 @@ CustomerSchema.index({ createdBy: 1 });
 CustomerSchema.virtual("fullAddress").get(function () {
   const addr = this.address;
   if (!addr) return "";
-  
+
   const parts = [
     addr.street,
     addr.city,
@@ -134,14 +106,14 @@ CustomerSchema.virtual("fullAddress").get(function () {
     addr.zipCode,
     addr.country,
   ].filter(Boolean);
-  
+
   return parts.join(", ");
 });
 
 CustomerSchema.virtual("fullBillingAddress").get(function () {
   const addr = this.billingAddress || this.address;
   if (!addr) return "";
-  
+
   const parts = [
     addr.street,
     addr.city,
@@ -149,12 +121,15 @@ CustomerSchema.virtual("fullBillingAddress").get(function () {
     addr.zipCode,
     addr.country,
   ].filter(Boolean);
-  
+
   return parts.join(", ");
 });
 
 // Methods
-CustomerSchema.methods.updateFinancials = function (invoiceAmount: number, paidAmount: number = 0) {
+CustomerSchema.methods.updateFinancials = function (
+  invoiceAmount: number,
+  paidAmount: number = 0
+) {
   this.totalInvoiced += invoiceAmount;
   this.totalPaid += paidAmount;
   this.outstandingBalance = this.totalInvoiced - this.totalPaid;
@@ -184,4 +159,6 @@ CustomerSchema.pre("save", function (next) {
   next();
 });
 
-export const Customer = mongoose.models.Customer || mongoose.model<ICustomer>("Customer", CustomerSchema);
+export const Customer =
+  mongoose.models.Customer ||
+  mongoose.model<CustomerModel>("Customer", CustomerSchema);

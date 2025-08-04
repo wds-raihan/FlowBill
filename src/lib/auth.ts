@@ -1,12 +1,13 @@
-import NextAuth from "next-auth";
-import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import GithubProvider from "next-auth/providers/github";
-import EmailProvider from "next-auth/providers/email";
 import clientPromise from "@/lib/mongodb";
 import { User } from "@/models/User";
+import { ExtendedJWT, ExtendedSession } from "@/types/auth";
+import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
 import bcrypt from "bcryptjs";
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import EmailProvider from "next-auth/providers/email";
+import GithubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
 import { z } from "zod";
 
 const signInSchema = z.object({
@@ -77,20 +78,20 @@ export const authOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }): Promise<ExtendedJWT> {
       if (user) {
         token.role = user.role;
         token.orgId = user.orgId;
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }): Promise<ExtendedSession> {
       if (token) {
         session.user.id = token.sub!;
         session.user.role = token.role as string;
         session.user.orgId = token.orgId as string;
       }
-      return session;
+      return session as ExtendedSession;
     },
   },
   pages: {

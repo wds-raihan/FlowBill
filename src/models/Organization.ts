@@ -1,47 +1,33 @@
-import mongoose, { Document, Schema } from "mongoose";
+import { OrganizationModel } from "@/types/models";
+import mongoose, { Schema } from "mongoose";
 
-export interface IOrganizationSettings {
+// Define organization-specific interfaces
+interface OrganizationTheme {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+}
+
+interface OrganizationSettings {
   currency: string;
   taxRate: number;
   paymentTerms: number;
   invoicePrefix: string;
-  theme: {
-    primaryColor: string;
-    secondaryColor: string;
-    accentColor: string;
-  };
+  theme: OrganizationTheme;
 }
 
-export interface IOrganization extends Document {
-  _id: string;
-  ownerId?: mongoose.Types.ObjectId;
-  name: string;
-  email: string;
-  logoUrl?: string;
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    zipCode?: string;
-    country?: string;
-  };
-  contact?: {
-    phone?: string;
-    website?: string;
-  };
-  taxId?: string;
-  bankDetails?: {
-    bankName?: string;
-    accountNumber?: string;
-    routingNumber?: string;
-  };
-  settings: IOrganizationSettings;
-  isSetupComplete: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+interface OrganizationContact {
+  phone?: string;
+  website?: string;
 }
 
-const OrganizationSettingsSchema = new Schema<IOrganizationSettings>({
+interface OrganizationBankDetails {
+  bankName?: string;
+  accountNumber?: string;
+  routingNumber?: string;
+}
+
+const OrganizationSettingsSchema = new Schema<OrganizationSettings>({
   currency: {
     type: String,
     default: "USD",
@@ -80,7 +66,7 @@ const OrganizationSettingsSchema = new Schema<IOrganizationSettings>({
   },
 });
 
-const OrganizationSchema = new Schema<IOrganization>(
+const OrganizationSchema = new Schema<OrganizationModel>(
   {
     ownerId: {
       type: Schema.Types.ObjectId,
@@ -155,7 +141,7 @@ OrganizationSchema.virtual("hasBasicInfo").get(function () {
 
 // Methods
 OrganizationSchema.methods.updateSettings = function (
-  settings: Partial<IOrganizationSettings>
+  settings: Partial<OrganizationSettings>
 ) {
   this.settings = { ...this.settings, ...settings };
   return this.save();
@@ -168,4 +154,4 @@ OrganizationSchema.methods.completeSetup = function () {
 
 export const Organization =
   mongoose.models.Organization ||
-  mongoose.model<IOrganization>("Organization", OrganizationSchema);
+  mongoose.model<OrganizationModel>("Organization", OrganizationSchema);

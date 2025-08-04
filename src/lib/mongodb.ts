@@ -1,77 +1,110 @@
-import { MongoClient } from "mongodb";
+/**
+ * MongoDB Connection Utilities
+ *
+ * This file provides two methods for connecting to MongoDB:
+ * 1. Direct connection using the MongoDB native driver (clientPromise)
+ * 2. Mongoose connection for schema-based operations (connectDB)
+ *
+ * Both methods implement connection pooling and caching for optimal performance.
+ */
 
+import { MongoClient, MongoClientOptions } from "mongodb";
+import mongoose, { ConnectOptions } from "mongoose";
+import { GlobalWithMongo, CachedMongoose, GlobalWithMongoose } from "@/types/mongodb";
+
+// Validate environment variable
 if (!process.env.MONGODB_URI) {
-  throw new Error('Invalid/Missing environment variable: "MONGODB_URI"');
+  throw new Error(
+    'Missing environment variable: "MONGODB_URI". Please define it in your .env.local file.'
+  );
 }
 
-const uri = process.env.MONGODB_URI;
-const options = {};
+const MONGODB_URI = process.env.MONGODB_URI;
+const isDevelopment = process.env.NODE_ENV === "development";
 
+// =========================================================
+// MongoDB Native Driver Connection (for NextAuth and direct operations)
+// =========================================================
+
+// Define MongoDB client options
+const mongoClientOptions: MongoClientOptions = {
+  // Add any specific options here if needed
+};
+
+// Setup MongoDB connection with caching for development
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
-if (process.env.NODE_ENV === "development") {
-  // In development mode, use a global variable so that the value
-  // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  let globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
-  };
+if (isDevelopment) {
+  // In development, use a global variable to preserve connection across HMR
+  const globalWithMongo = global as unknown as GlobalWithMongo;
 
   if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options);
+    client = new MongoClient(MONGODB_URI, mongoClientOptions);
     globalWithMongo._mongoClientPromise = client.connect();
   }
   clientPromise = globalWithMongo._mongoClientPromise;
 } else {
-  // In production mode, it's best to not use a global variable.
-  client = new MongoClient(uri, options);
+  // In production, create a new connection
+  client = new MongoClient(MONGODB_URI, mongoClientOptions);
   clientPromise = client.connect();
 }
 
-// Export a module-scoped MongoClient promise. By doing this in a
-// separate module, the client can be shared across functions.
+// Export MongoDB client promise for use with NextAuth and direct MongoDB operations
 export default clientPromise;
 
-// Mongoose connection helper
-import mongoose from "mongoose";
+// =========================================================
+// Mongoose Connection (for schema-based operations)
+// =========================================================
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+// Setup mongoose connection caching
+const globalWithMongoose = global as unknown as GlobalWithMongoose;
 
-if (!MONGODB_URI) {
-  throw new Error("Please define the MONGODB_URI environment variable inside .env.local");
+// Initialize cache
+if (!globalWithMongoose.mongoose) {
+  globalWithMongoose.mongoose = { conn: null, promise: null };
 }
+
+const cached = globalWithMongoose.mongoose;
+
+// Mongoose connection options
+const mongooseConnectOptions: ConnectOptions = {
+  bufferCommands: false,
+  // Add any other Mongoose-specific options here
+};
 
 /**
- * Global is used here to maintain a cached connection across hot reloads
- * in development. This prevents connections growing exponentially
- * during API Route usage.
+ * Connects to MongoDB using Mongoose with connection pooling
+ *
+ * @returns Mongoose connection instance
  */
-let cached = (global as any).mongoose;
-
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
-}
-
-export async function connectDB() {
+export async function connectDB(): Promise<typeof mongoose> {
+  // Return existing connection if available
   if (cached.conn) {
     return cached.conn;
   }
 
+  // Create new connection promise if none exists
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
-
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose;
-    });
+    cached.promise = mongoose
+      .connect(MONGODB_URI, mongooseConnectOptions)
+      .then((mongoose) => {
+        console.log("MongoDB connected successfully via Mongoose");
+        return mongoose;
+      })
+      .catch((err) => {
+        console.error("MongoDB connection error:", err);
+        cached.promise = null;
+        throw err;
+      });
   }
 
+  // Wait for connection to resolve
   try {
     cached.conn = await cached.promise;
-  } catch (e) {
+  } catch (error) {
     cached.promise = null;
-    throw e;
+    throw error;
   }
 
   return cached.conn;
