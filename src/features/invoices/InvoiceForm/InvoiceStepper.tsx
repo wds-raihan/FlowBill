@@ -1,9 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,17 +8,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Stepper, Step, StepLabel } from "@/components/ui/stepper";
+import { Step, StepLabel, Stepper } from "@/components/ui/stepper";
+import { useInvoiceSelectors, useInvoiceStore } from "@/stores/invoiceStore";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, motion } from "framer-motion";
+import { FileText, Save, Send } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { InvoiceFormData, invoiceFormSchema } from "./InvoiceFormSchema";
+import { InvoicePreview } from "./InvoicePreview";
 import { Step1Customer } from "./Step1Customer";
 import { Step2Items } from "./Step2Items";
-import { Step3Summary } from "./Step3Summary";
-import { InvoicePreview } from "./InvoicePreview";
-import { invoiceFormSchema, InvoiceFormData } from "./InvoiceFormSchema";
-import { useSession } from "next-auth/react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-import { useInvoiceStore, useInvoiceSelectors } from "@/stores/invoiceStore";
-import { Save, FileText, Send } from "lucide-react";
+import { Step3Summary } from "./Step3Summery";
 
 interface InvoiceFormProps {
   initialData?: Partial<InvoiceFormData>;
@@ -50,25 +50,31 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
     saveDraft,
   } = useInvoiceStore();
 
-  const { isFormValid, canProceedToNext, hasUnsavedChanges } = useInvoiceSelectors();
+  const { isFormValid, canProceedToNext, hasUnsavedChanges } =
+    useInvoiceSelectors();
 
   const form = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceFormSchema),
     defaultValues: {
       customerId: formData.customerId || initialData?.customerId || "",
       issueDate: formData.issueDate || initialData?.issueDate || new Date(),
-      dueDate: formData.dueDate || initialData?.dueDate || 
+      dueDate:
+        formData.dueDate ||
+        initialData?.dueDate ||
         new Date(new Date().setDate(new Date().getDate() + 30)),
-      items: items.length > 0 ? items : initialData?.items || [
-        {
-          id: crypto.randomUUID(),
-          description: "",
-          pageQty: 0,
-          serviceCharge: 0,
-          rate: 0,
-          amount: 0,
-        },
-      ],
+      items:
+        items.length > 0
+          ? items
+          : initialData?.items || [
+              {
+                id: crypto.randomUUID(),
+                description: "",
+                pageQty: 0,
+                serviceCharge: 0,
+                rate: 0,
+                amount: 0,
+              },
+            ],
       tax: formData.tax || initialData?.tax || 0,
       discount: formData.discount || initialData?.discount || 0,
       notes: formData.notes || initialData?.notes || "",
@@ -82,7 +88,7 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
 
   // Watch form changes and sync with Zustand
   const watchedValues = form.watch();
-  
+
   useEffect(() => {
     updateFormData(watchedValues);
     calculateTotals();
@@ -111,20 +117,20 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
   }, [invoiceId, resetForm]);
 
   const steps = [
-    { 
-      label: "Customer", 
+    {
+      label: "Customer",
       description: "Select customer and set dates",
-      icon: <FileText className="w-4 h-4" />
+      icon: <FileText className="w-4 h-4" />,
     },
-    { 
-      label: "Items", 
+    {
+      label: "Items",
       description: "Add invoice items and services",
-      icon: <FileText className="w-4 h-4" />
+      icon: <FileText className="w-4 h-4" />,
     },
-    { 
-      label: "Summary", 
+    {
+      label: "Summary",
       description: "Review and finalize invoice",
-      icon: <FileText className="w-4 h-4" />
+      icon: <FileText className="w-4 h-4" />,
     },
   ];
 
@@ -154,7 +160,7 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
     try {
       setIsSubmitting(true);
       const formValues = form.getValues();
-      
+
       const response = await fetch("/api/invoices", {
         method: "POST",
         headers: {
@@ -175,7 +181,7 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
       const result = await response.json();
       saveDraft();
       toast.success("Draft saved successfully");
-      
+
       // Redirect to edit mode
       router.push(`/invoices/edit/${result._id}`);
     } catch (error) {
@@ -226,7 +232,9 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
       // Redirect to invoice detail page
       router.push(`/invoices/${result._id || invoiceId}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save invoice");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save invoice"
+      );
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -268,7 +276,7 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
                 : "Fill in the details to create a new invoice"}
             </p>
           </div>
-          
+
           {/* Draft indicator */}
           {hasUnsavedChanges && (
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
@@ -287,10 +295,11 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
                 <div>
                   <CardTitle>Invoice Details</CardTitle>
                   <CardDescription>
-                    Step {currentStep + 1} of {steps.length} - {steps[currentStep]?.description}
+                    Step {currentStep + 1} of {steps.length} -{" "}
+                    {steps[currentStep]?.description}
                   </CardDescription>
                 </div>
-                
+
                 {/* Save Draft Button */}
                 {!invoiceId && (
                   <Button
@@ -368,7 +377,7 @@ export function InvoiceStepper({ initialData, invoiceId }: InvoiceFormProps) {
                       </Button>
                     </div>
                   ) : (
-                    <Button 
+                    <Button
                       onClick={handleNext}
                       disabled={!canProceedToNext(currentStep)}
                     >

@@ -1,5 +1,4 @@
 import { NextRequest } from "next/server";
-import { createHash, randomBytes } from "crypto";
 
 // CSRF Token Management
 export class CSRFProtection {
@@ -8,33 +7,47 @@ export class CSRFProtection {
   private static readonly COOKIE_NAME = "csrf-token";
 
   /**
-   * Generate a cryptographically secure CSRF token
+   * Generate a cryptographically secure CSRF token using Web Crypto API
    */
   static generateToken(): string {
-    return randomBytes(this.TOKEN_LENGTH).toString("hex");
+    // Use Web Crypto API which is available in Edge Runtime
+    const array = new Uint8Array(this.TOKEN_LENGTH);
+    crypto.getRandomValues(array);
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
+      ""
+    );
   }
 
   /**
-   * Create a hash of the token for secure storage
+   * Create a hash of the token for secure storage using Web Crypto API
    */
-  static hashToken(token: string): string {
-    return createHash("sha256").update(token).digest("hex");
+  static async hashToken(token: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(token);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = new Uint8Array(hashBuffer);
+    return Array.from(hashArray, (byte) =>
+      byte.toString(16).padStart(2, "0")
+    ).join("");
   }
 
   /**
    * Validate CSRF token from request
    */
-  static validateToken(request: NextRequest, storedTokenHash: string): boolean {
+  static async validateToken(
+    request: NextRequest,
+    storedTokenHash: string
+  ): Promise<boolean> {
     const tokenFromHeader = request.headers.get(this.TOKEN_HEADER);
     const tokenFromBody = request.nextUrl.searchParams.get("_token");
-    
+
     const token = tokenFromHeader || tokenFromBody;
-    
+
     if (!token || !storedTokenHash) {
       return false;
     }
 
-    const tokenHash = this.hashToken(token);
+    const tokenHash = await this.hashToken(token);
     return tokenHash === storedTokenHash;
   }
 
@@ -43,6 +56,15 @@ export class CSRFProtection {
    */
   static requiresProtection(method: string): boolean {
     return ["POST", "PUT", "DELETE", "PATCH"].includes(method.toUpperCase());
+  }
+
+  /**
+   * Generate token and hash pair for easy setup
+   */
+  static async generateTokenPair(): Promise<{ token: string; hash: string }> {
+    const token = this.generateToken();
+    const hash = await this.hashToken(token);
+    return { token, hash };
   }
 }
 
@@ -55,7 +77,10 @@ interface RateLimitConfig {
 }
 
 export class RateLimiter {
-  private static store = new Map<string, { count: number; resetTime: number }>();
+  private static store = new Map<
+    string,
+    { count: number; resetTime: number }
+  >();
 
   /**
    * Check if request should be rate limited
@@ -187,8 +212,8 @@ export class InputValidator {
       /(--|\/\*|\*\/|;|'|"|`)/,
       /(\bOR\b|\bAND\b).*[=<>]/i,
     ];
-    
-    return sqlPatterns.some(pattern => pattern.test(input));
+
+    return sqlPatterns.some((pattern) => pattern.test(input));
   }
 }
 
@@ -201,16 +226,16 @@ export class SecurityHeaders {
     return {
       // Prevent XSS attacks
       "X-XSS-Protection": "1; mode=block",
-      
+
       // Prevent MIME type sniffing
       "X-Content-Type-Options": "nosniff",
-      
+
       // Prevent clickjacking
       "X-Frame-Options": "DENY",
-      
+
       // Enforce HTTPS
       "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-      
+
       // Content Security Policy
       "Content-Security-Policy": [
         "default-src 'self'",
@@ -220,10 +245,10 @@ export class SecurityHeaders {
         "img-src 'self' data: https:",
         "connect-src 'self' https:",
       ].join("; "),
-      
+
       // Referrer Policy
       "Referrer-Policy": "strict-origin-when-cross-origin",
-      
+
       // Permissions Policy
       "Permissions-Policy": [
         "camera=()",
@@ -275,7 +300,7 @@ export class PasswordSecurity {
       /letmein/i,
     ];
 
-    if (commonPatterns.some(pattern => pattern.test(password))) {
+    if (commonPatterns.some((pattern) => pattern.test(password))) {
       errors.push("Password contains common patterns and is not secure");
     }
 
