@@ -1,8 +1,9 @@
 import clientPromise from "@/lib/mongodb";
 import { User } from "@/models/User";
 import { ExtendedJWT, ExtendedSession } from "@/types/auth";
-import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
+
 import bcrypt from "bcryptjs";
+import { MongoClient } from "mongodb";
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import EmailProvider from "next-auth/providers/email";
@@ -102,3 +103,6 @@ export const authOptions = {
 };
 
 export default NextAuth(authOptions);
+function MongoDBAdapter(clientPromise: Promise<MongoClient>) {
+  throw new Error("Function not implemented.");
+}

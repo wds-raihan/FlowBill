@@ -1,23 +1,27 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import {
+  InputValidator,
+  RateLimiter,
+  SecurityHeaders,
+} from "@/lib/security/csrf";
 import { getToken } from "next-auth/jwt";
-import { RateLimiter, SecurityHeaders, InputValidator } from "@/lib/security/csrf";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 // Rate limiting configurations for different endpoints
 const RATE_LIMITS = {
   // Authentication endpoints
   "/api/auth": { windowMs: 15 * 60 * 1000, maxRequests: 5 }, // 5 requests per 15 minutes
-  
+
   // Email sending endpoints
   "/api/invoices/*/send": { windowMs: 15 * 60 * 1000, maxRequests: 10 }, // 10 emails per 15 minutes
   "/api/invoices/*/remind": { windowMs: 60 * 60 * 1000, maxRequests: 5 }, // 5 reminders per hour
-  
+
   // PDF generation
   "/api/invoices/*/pdf": { windowMs: 5 * 60 * 1000, maxRequests: 20 }, // 20 PDFs per 5 minutes
-  
+
   // General API endpoints
   "/api": { windowMs: 60 * 1000, maxRequests: 100 }, // 100 requests per minute
-  
+
   // Registration endpoint
   "/api/auth/register": { windowMs: 60 * 60 * 1000, maxRequests: 3 }, // 3 registrations per hour
 };
@@ -65,8 +69,20 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // Redirect root path to dashboard for authenticated users
+  if (pathname === "/") {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    if (token) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
+
   // Get client IP for rate limiting
-  const clientIP = 
+  const clientIP =
     request.headers.get("x-forwarded-for")?.split(",")[0] ||
     request.headers.get("x-real-ip") ||
     "unknown";
@@ -83,9 +99,13 @@ export async function middleware(request: NextRequest) {
         status: 429,
         headers: {
           "Content-Type": "application/json",
-          "Retry-After": Math.ceil((rateLimitResult.resetTime! - Date.now()) / 1000).toString(),
+          "Retry-After": Math.ceil(
+            (rateLimitResult.resetTime! - Date.now()) / 1000
+          ).toString(),
           "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": new Date(rateLimitResult.resetTime!).toISOString(),
+          "X-RateLimit-Reset": new Date(
+            rateLimitResult.resetTime!
+          ).toISOString(),
           ...securityHeaders,
         },
       }
@@ -94,10 +114,16 @@ export async function middleware(request: NextRequest) {
 
   // Add rate limit headers
   if (rateLimitResult.remaining !== undefined) {
-    response.headers.set("X-RateLimit-Remaining", rateLimitResult.remaining.toString());
+    response.headers.set(
+      "X-RateLimit-Remaining",
+      rateLimitResult.remaining.toString()
+    );
   }
   if (rateLimitResult.resetTime) {
-    response.headers.set("X-RateLimit-Reset", new Date(rateLimitResult.resetTime).toISOString());
+    response.headers.set(
+      "X-RateLimit-Reset",
+      new Date(rateLimitResult.resetTime).toISOString()
+    );
   }
 
   // Input validation for API routes
@@ -121,18 +147,18 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authentication check for protected routes
-  const isProtectedRoute = PROTECTED_ROUTES.some(route => 
+  const isProtectedRoute = PROTECTED_ROUTES.some((route) =>
     pathname.startsWith(route)
   );
-  
-  const isPublicRoute = PUBLIC_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(route)
+
+  const isPublicRoute = PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route)
   );
 
   if (isProtectedRoute && !isPublicRoute) {
-    const token = await getToken({ 
-      req: request, 
-      secret: process.env.NEXTAUTH_SECRET 
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
     });
 
     if (!token) {
@@ -144,16 +170,13 @@ export async function middleware(request: NextRequest) {
       }
 
       // Return 401 for API routes
-      return new NextResponse(
-        JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            ...securityHeaders,
-          },
-        }
-      );
+      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+          ...securityHeaders,
+        },
+      });
     }
 
     // Add user info to headers for API routes
@@ -169,9 +192,12 @@ export async function middleware(request: NextRequest) {
 function applyRateLimit(pathname: string, clientIP: string) {
   // Find matching rate limit configuration
   let config = RATE_LIMITS["/api"]; // default
-  
+
   for (const [pattern, rateLimitConfig] of Object.entries(RATE_LIMITS)) {
-    if (pathname.startsWith(pattern) || pathname.match(pattern.replace("*", "[^/]+"))) {
+    if (
+      pathname.startsWith(pattern) ||
+      pathname.match(pattern.replace("*", "[^/]+"))
+    ) {
       config = rateLimitConfig;
       break;
     }
@@ -196,7 +222,7 @@ async function validateInput(request: NextRequest): Promise<{
       contentType.includes("application/json")
     ) {
       const body = await request.clone().json();
-      
+
       // Validate common fields
       if (body.email && !InputValidator.isValidEmail(body.email)) {
         errors.push("Invalid email format");
@@ -206,7 +232,10 @@ async function validateInput(request: NextRequest): Promise<{
         errors.push("Invalid phone number format");
       }
 
-      if (typeof body.total === "number" && !InputValidator.isValidAmount(body.total)) {
+      if (
+        typeof body.total === "number" &&
+        !InputValidator.isValidAmount(body.total)
+      ) {
         errors.push("Invalid amount value");
       }
 
@@ -223,10 +252,16 @@ async function validateInput(request: NextRequest): Promise<{
       // Validate nested objects
       if (body.items && Array.isArray(body.items)) {
         body.items.forEach((item: any, index: number) => {
-          if (item.description && InputValidator.containsSqlInjection(item.description)) {
+          if (
+            item.description &&
+            InputValidator.containsSqlInjection(item.description)
+          ) {
             errors.push(`Invalid characters in item ${index + 1} description`);
           }
-          if (typeof item.amount === "number" && !InputValidator.isValidAmount(item.amount)) {
+          if (
+            typeof item.amount === "number" &&
+            !InputValidator.isValidAmount(item.amount)
+          ) {
             errors.push(`Invalid amount in item ${index + 1}`);
           }
         });
